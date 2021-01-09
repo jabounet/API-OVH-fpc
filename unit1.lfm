@@ -1,0 +1,59 @@
+object Form1: TForm1
+  Left = 453
+  Height = 439
+  Top = 162
+  Width = 578
+  Caption = 'Form1'
+  ClientHeight = 439
+  ClientWidth = 578
+  DesignTimePPI = 120
+  OnCreate = FormCreate
+  LCLVersion = '2.0.2.0'
+  object Edit1: TEdit
+    Left = 40
+    Height = 28
+    Top = 80
+    Width = 334
+    ParentFont = False
+    TabOrder = 0
+    Text = 'Edit1'
+  end
+  object Button1: TButton
+    Left = 40
+    Height = 31
+    Top = 220
+    Width = 94
+    Caption = 'GET'
+    OnClick = Button1Click
+    ParentFont = False
+    TabOrder = 1
+  end
+  object Edit2: TEdit
+    Left = 40
+    Height = 28
+    Top = 140
+    Width = 334
+    ParentFont = False
+    TabOrder = 2
+    Text = '/telephony/{billingAccount}/line/{serviceName}/calls'
+  end
+  object Memo1: TMemo
+    Left = 168
+    Height = 224
+    Top = 192
+    Width = 356
+    Lines.Strings = (
+      'Memo1'
+    )
+    TabOrder = 3
+  end
+  object Button2: TButton
+    Left = 40
+    Height = 31
+    Top = 182
+    Width = 94
+    Caption = 'Login'
+    OnClick = Button2Click
+    TabOrder = 4
+  end
+end
