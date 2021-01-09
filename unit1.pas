@@ -5,9 +5,9 @@ unit Unit1;
 interface
 
 uses
-  Classes, SysUtils, ssl_openssl,Forms,
-  Controls, Graphics, Dialogs, StdCtrls,synautil,
-  FpJson, JSonParser, DCPsha1,httpsend, lclintf, strutils;
+  Classes, SysUtils, ssl_openssl, Forms,
+  Controls, Graphics, Dialogs, StdCtrls, synautil,
+  FpJson, JSonParser, DCPsha1, httpsend, lclintf, strutils;
 
 type
 
@@ -21,7 +21,6 @@ type
     Memo1: TMemo;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
-    procedure FormCreate(Sender: TObject);
   private
 
   public
@@ -31,39 +30,75 @@ type
 var
   Form1: TForm1;
 
-const CRLF = #13#10;
-const BASE_URL ='https://eu.api.ovh.com/1.0';
-const OVH_URL_TIMESTAMP = '/auth/time';
-const  OVH_AK = 'n0NhFz3JavSGlkZY';
-const OVH_AS = 'anSVC8QqIujgUZS4pY42CwnV959iQ68G';
+const
+  CRLF = #13#10;
+
+const
+  BASE_URL = 'https://eu.api.ovh.com/1.0';
+
+const
+  OVH_URL_TIMESTAMP = '/auth/time';
+
+const
+  OVH_AK = 'n0NhFz3JavSGlkZY';
+
+const
+  OVH_AS = 'anSVC8QqIujgUZS4pY42CwnV959iQ68G';
 
 
-var OVH_CK:string;
-var BillingAccount: String='jf91384-ovh-1';
-var serviceName: String='0033428299336';
+var
+  OVH_CK: string;
+
+var
+  BillingAccount: string = 'jf91384-ovh-1';
 
 
-const OVH_TimeOut = 1500;
+const
+  OVH_TimeOut = 1500;
 
-type OVH_Query = record
-method : string;
-mimeType: string;
-url: String;
-query : string;
-body : string;
-timestamp : string;
-signature : string;
+type
+  OVH_Query = record
+    method: string;
+    mimeType: string;
+    url: string;
+    query: string;
+    body: string;
+    timestamp: string;
+    signature: string;
+  end;
+
+type
+  OVH_ResultCK = record
+    CK: string;
+    redirect: string;
+  end;
+
+type Call_state = (idle,calling);
+
+type OVH_Call = record
+ id:string;
+ phone_number: string;
+ state : Call_state;
 end;
 
-type OVH_ResultCK = record
-CK : string;
-redirect:string;
-end;
+type OVH_Calls = array of OVH_Call;
+
+type
+  OVH_PhoneLine = record
+    id: string;
+    Calls : OVH_Calls;
+  end;
+
+type
+  OVH_PhoneLines = array of OVH_PhoneLine;
+
+var
+  Cur_OVH_Phonelines: OVH_PhoneLines;
 
 function getsha1hash(S: string): string;
-function CreateOVHQuery(m,q,b:string):OVH_Query;
+function CreateOVHQuery(m, q, b: string;ServiceName:string=''): OVH_Query;
 function Get_OVH_TimeStamp: string;
-function Get_OVH(Query:OVH_QUERY): String;
+function OVHClient(Query: OVH_QUERY): string;
 
 implementation
 
@@ -147,18 +182,18 @@ begin
 end;
 
 
-function CreateOVHQuery(m,q,b:string):OVH_Query;
+function CreateOVHQuery(m, q, b: string;ServiceName:string=''): OVH_Query;
 begin
-with Result do begin
-method:=m;
-query:=StringsReplace(q,
-['{billingAccount}','{serviceName}'],
-[BillingAccount,ServiceName],[RfReplaceAll]);
-body:=b;
-timestamp:=Get_Ovh_TimeStamp;
-Form1.Memo1.lines.add(OVH_AS+'+'+OVH_CK+'+'+m+'+'+query+'+'+b+'+'+timestamp);
-signature:='$1$'+GetSHA1Hash(OVH_AS+'+'+OVH_CK+'+'+m+'+'+query+'+'+b+'+'+timestamp);
-end;
+  with Result do
+  begin
+    method := m;
+    query := StringsReplace(q, ['{billingAccount}', '{serviceName}'],
+      [BillingAccount, ServiceName], [RfReplaceAll]);
+    body := b;
+    timestamp := Get_Ovh_TimeStamp;
+    //Form1.Memo1.lines.add(OVH_AS+'+'+OVH_CK+'+'+m+'+'+query+'+'+b+'+'+timestamp);
+    signature := '$1$' + GetSHA1Hash(OVH_AS + '+' + OVH_CK + '+' + m + '+' + query + '+' + b + '+' + timestamp);
+  end;
 end;
 
 function getsha1hash(S: string): string;
@@ -196,79 +231,70 @@ begin
   Response := TStringList.Create;
   HTTP := THTTPSend.Create;
   try
-  URL := BASE_URL+OVH_URL_TIMESTAMP;
-  HTTP.Timeout := OVH_TimeOut;
-  HTTP.Sock.ConnectionTimeout := OVH_TimeOut;
-  if HTTP.HTTPMethod('GET', URL) then
-  begin
-    if HTTP.ResultCode <> 200 then
+    URL := BASE_URL + OVH_URL_TIMESTAMP;
+    HTTP.Timeout := OVH_TimeOut;
+    HTTP.Sock.ConnectionTimeout := OVH_TimeOut;
+    if HTTP.HTTPMethod('GET', URL) then
     begin
-    end
-    else
-    begin
-      Response.LoadFromStream(HTTP.Document);
-      Result := response[0];
+      if HTTP.ResultCode <> 200 then
+      begin
+      end
+      else
+      begin
+        Response.LoadFromStream(HTTP.Document);
+        Result := response[0];
+      end;
     end;
-  end;
   finally
-  Response.Free;
-  HTTP.Free;
+    Response.Free;
+    HTTP.Free;
   end;
 end;
 
 
-Function CustomOVHHeaders(query:OVH_QUERY):String;
+function CustomOVHHeaders(query: OVH_QUERY): string;
 begin
-Result:=
-'X-Ovh-Application: '+OVH_AK+CRLF+
-'X-Ovh-Timestamp: '+Query.timestamp+CRLF+
-'X-Ovh-Signature: '+Query.signature+CRLF+
-'X-Ovh-Consumer: '+OVH_CK;
+  Result :=
+    'X-Ovh-Application: ' + OVH_AK + CRLF + 'X-Ovh-Timestamp: ' + Query.timestamp +
+    CRLF + 'X-Ovh-Signature: ' + Query.signature + CRLF + 'X-Ovh-Consumer: ' + OVH_CK;
 end;
 
 
-function Get_OVH(Query:OVH_QUERY): String;
+function OVHClient(Query: OVH_QUERY): string;
 var
   Response: TStringList;
   URL: string;
   HTTP: THTTPSend;
-  ParseResponse : TJSONData;
+  ParseResponse: TJSONData;
+  Body: TstringList;
 begin
 
   Response := TStringList.Create;
   HTTP := THTTPSend.Create;
+  Body := TStringList.create;
   URL := Query.query;
   try
-  HTTP.Document.Clear;
-  HTTP.Headers.text := CustomOVHHeaders(Query);
+    HTTP.Document.Clear;
+    HTTP.Headers.Text := CustomOVHHeaders(Query);
+    Body.Clear;
+    Body.Add(Query.body);
+    if Query.body<>'' then Body.SaveToStream(HTTP.Document);
 
-  HTTP.mimeType := GetMimeFromExt(Query.mimeType);
-  HTTP.Timeout := OVH_TimeOut;
-  HTTP.Sock.ConnectionTimeout := OVH_TimeOut;
-  form1.memo1.lines.add(HTTP.Headers.text);
-  if HTTP.HTTPMethod(query.method, URL) then
-  begin
-    Response.LoadFromStream(HTTP.Document);
-      Result := HTTP.Headers.text+CRLF+Response.Text;
-    if HTTP.ResultCode <> 200 then
+    HTTP.mimeType := GetMimeFromExt(Query.mimeType);
+    HTTP.Timeout := OVH_TimeOut;
+    HTTP.Sock.ConnectionTimeout := OVH_TimeOut;
+    if HTTP.HTTPMethod(query.method, URL) then
     begin
-    end
-    else
-    begin
-
+      Response.LoadFromStream(HTTP.Document);
+      Result := (Response[0]);
+      Form1.Memo1.Lines.Add(URL+CRLF+HTTP.Headers.text+CRLF+Result);
     end;
-
-  end;
   finally
-  Response.Free;
-  HTTP.Free;
-
+    Response.Free;
+    HTTP.Free;
+    Body.free;
   end;
 end;
-
-
-
-
 
 
 
@@ -278,73 +304,145 @@ var
   Response: TStringList;
   URL: string;
   HTTP: THTTPSend;
-  Body: TStringlist;
-  ParseResponse : TJSONData;
+  Body: TStringList;
+  ParseResponse: TJSONData;
 begin
 
   Response := TStringList.Create;
-  Body := TstringList.create;
+  Body := TStringList.Create;
   HTTP := THTTPSend.Create;
-  URL := BASE_URL+'/auth/credential';
+  URL := BASE_URL + '/auth/credential';
   try
-  HTTP.Document.Clear;
-  HTTP.Headers.Add('X-Ovh-Application: '+OVH_AK);
-  HTTP.Headers.Add('Content-Type: application/json');
-  HTTP.MimeType:=getmimefromext('.json');
-  Body.Clear;
-  Body.Add('{"accessRules": [{"method": "GET","path": "/*"},{"method": "POST","path": "/*"}],"redirection":"https://www.jvet.fr/"}');
-  Body.SaveToStream(HTTP.Document);
-  HTTP.Timeout := OVH_TimeOut;
-  HTTP.Sock.ConnectionTimeout := OVH_TimeOut;
+    HTTP.Document.Clear;
+    HTTP.Headers.Add('X-Ovh-Application: ' + OVH_AK);
+    HTTP.Headers.Add('Content-Type: application/json');
+    HTTP.MimeType := getmimefromext('.json');
+    Body.Clear;
+    Body.Add('{"accessRules": [{"method": "GET","path": "/*"},{"method": "POST","path": "/*"}],"redirection":"https://www.jvet.fr/"}');
+    Body.SaveToStream(HTTP.Document);
+    HTTP.Timeout := OVH_TimeOut;
+    HTTP.Sock.ConnectionTimeout := OVH_TimeOut;
 
-  if HTTP.HTTPMethod('POST', URL) then
-  begin
+    if HTTP.HTTPMethod('POST', URL) then
+    begin
 
-    if HTTP.ResultCode <> 200 then
+      if HTTP.ResultCode <> 200 then
+      begin
+      end
+      else
+      begin
+        Response.LoadFromStream(HTTP.Document);
+        Parseresponse := GetJSon(Response.Text);
+        Result.redirect := Parseresponse.FindPath('validationUrl').AsString;
+        Result.CK := Parseresponse.FindPath('consumerKey').AsString;
+      end;
+
+    end;
+  finally
+    Response.Free;
+    HTTP.Free;
+    Body.Free;
+  end;
+end;
+
+
+
+
+function GetOVHPhoneLinesIds: boolean;
+var
+  i: integer;
+var
+  a: TJSONData;
+  c: TJSONArray;
+var
+  rs: string;
+begin
+  Result := False;
+  Setlength(Cur_OVH_PhoneLines, 0);
+  try
+    a := getjson(OVHClient(CreateOVHQuery(
+      'GET', BASE_URL + '/telephony/{billingAccount}/line', '')));
+    if a = nil then
+      exit;
+    c := TJSONArray(a);
+    for i := 0 to (c.Count - 1) do
     begin
-    end
-    else
+      Setlength(Cur_OVH_PhoneLines, i + 1);
+      with Cur_OVH_Phonelines[i] do
+      begin
+        id := c.items[i].AsString;
+      end;
+    end;
+  finally
+  end;
+  Result := True;
+end;
+///telephony/{billingAccount}/line/{serviceName}/calls
+
+function GetOVHPhoneCallsIds: boolean;
+var
+  i,j: integer;
+var
+  a: TJSONData;
+  c: TJSONArray;
+var
+  rs: string;
+begin
+  Result := False;
+  if length(Cur_OVH_PhoneLines)=0 then exit;
+  try
+    for i:=0 to length(Cur_OVH_PhoneLines)-1 do
     begin
-      Response.LoadFromStream(HTTP.Document);
-      Parseresponse := GetJSon(Response.Text);
-      Result.redirect := Parseresponse.FindPath('validationUrl').AsString;
-      Result.CK := Parseresponse.FindPath('consumerKey').AsString;
+    a := getjson(OVHClient(CreateOVHQuery(
+      'GET', BASE_URL + '/telephony/{billingAccount}/line/{serviceName}/calls','',Cur_OVH_PhoneLines[i].id)));
+    if a = nil then
+      exit;
+    c := TJSONArray(a);
+    Setlength(Cur_OVH_PhoneLines[i].Calls, 0);
+    for j := 0 to (c.Count - 1) do
+    begin
+      Setlength(Cur_OVH_PhoneLines[i].Calls, j + 1);
+      with Cur_OVH_Phonelines[i].Calls[j] do
+      begin
+       id := c.items[i].AsString;
+      end;
     end;
 
-  end;
+    end;
   finally
-  Response.Free;
-  HTTP.Free;
-  Body.free;
   end;
+  Result := True;
 end;
 
-
-
-
-
-procedure TForm1.FormCreate(Sender: TObject);
-begin
-
-end;
 
 procedure TForm1.Button1Click(Sender: TObject);
+var
+  a, b: TJSONData;
+var
+  c: TJSONArray;
+var
+  s, rs: string;
+var
+  i,j: integer;
 begin
 
-if OVH_CK='' then exit;
-Memo1.lines.add( Get_OVH(
-CreateOVHQuery('GET',BASE_URL+edit2.Text,'')));
+  GetOVHPhoneLinesIds;
+  GetOVHPhoneCallsIds;
 
+  for i := 0 to length(Cur_OVH_PhoneLines) - 1 do
+  for j:=0 to length(Cur_OVH_PhoneLines[i].Calls)-1 do
+  memo1.Lines.add('+'+Cur_OVH_PhoneLines[i].id+Cur_OVH_PhoneLines[i].Calls[j].id);
+  exit;
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);
-var r:Ovh_ResultCK;
+var
+  r: Ovh_ResultCK;
 begin
- r:=Get_OVH_CK;
-  Memo1.lines.add(r.CK+CRLF+r.redirect);//getsha1hash(Edit1.text);
+  r := Get_OVH_CK;
+  // Memo1.lines.add(r.CK+CRLF+r.redirect);//getsha1hash(Edit1.text);
   OpenURL(r.redirect);
   OVH_CK := r.CK;
 end;
 
 end.
-

@@ -7,7 +7,6 @@ object Form1: TForm1
   ClientHeight = 439
   ClientWidth = 578
   DesignTimePPI = 120
-  OnCreate = FormCreate
   LCLVersion = '2.0.2.0'
   object Edit1: TEdit
     Left = 40
@@ -35,7 +34,7 @@ object Form1: TForm1
     Width = 334
     ParentFont = False
     TabOrder = 2
-    Text = 'Edit2'
+    Text = '/telephony/{billingAccount}/line/{serviceName}/calls'
   end
   object Memo1: TMemo
     Left = 168
