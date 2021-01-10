@@ -35,6 +35,11 @@ var
   Form1: TForm1;
 
 var  ovhtimer: Ttimer;
+
+var initTime, curTime : TdateTime;
+var syncTime:boolean=false;
+var startTimeStamp,curTimeStamp:int64;
+
 const
   CRLF = #13#10;
 
@@ -111,7 +116,7 @@ var
 
 function getsha1hash(S: string): string;
 function CreateOVHQuery(m, q, b: string; ServiceName: string = ''): OVH_Query;
-function Get_OVH_TimeStamp: string;
+function Get_OVH_TimeStamp: int64;
 function OVHClient(Query: OVH_QUERY): string;
 
 implementation
@@ -247,6 +252,22 @@ begin
 end;
 
 
+// Synchro du temps avec le serveur OVH
+function GetCurTimeStamp:string;
+begin
+result := '-1';
+if not SyncTime then begin
+startTimeStamp:=Get_OVH_TimeStamp;
+initTime := now;
+SyncTime:=true;
+end;
+curTime:=now;
+curTimeStamp := startTimeStamp + SecondsBetween(curtime,initTime);
+Result := inttostr(curTimeStamp);
+end;
+
+
+// Création d'une requête OVH
 function CreateOVHQuery(m, q, b: string; ServiceName: string = ''): OVH_Query;
 begin
   with Result do
@@ -255,12 +276,13 @@ begin
     query := StringsReplace(q, ['{billingAccount}', '{serviceName}'],
       [BillingAccount, ServiceName], [RfReplaceAll]);
     body := b;
-    timestamp := Get_Ovh_TimeStamp;
+    timestamp := GetCurTimeStamp;
     signature := '$1$' + GetSHA1Hash(OVH_AS + '+' + OVH_CK + '+' +
       m + '+' + query + '+' + b + '+' + timestamp);
   end;
 end;
 
+// Encodage SHA1 pour la signature
 function getsha1hash(S: string): string;
 var
   Hash: TDCP_SHA1;
@@ -286,13 +308,14 @@ begin
 
 end;
 
-function Get_OVH_TimeStamp: string;
+// Récupération du temps sur le serveur OVH
+function Get_OVH_TimeStamp: int64;
 var
   Response: TStringList;
   URL: string;
   HTTP: THTTPSend;
 begin
-  Result := '';
+  Result := -1;
   Response := TStringList.Create;
   HTTP := THTTPSend.Create;
   try
@@ -303,12 +326,12 @@ begin
     begin
       if HTTP.ResultCode <> 200 then
       begin
-        log(URL + CRLF + HTTP.Headers.Text + CRLF + Result);
+        //log(URL + CRLF + HTTP.Headers.Text + CRLF + Result);
       end
       else
       begin
         Response.LoadFromStream(HTTP.Document);
-        Result := response[0];
+        Result := strtointdef(response[0],-1);
       end;
     end;
   finally
