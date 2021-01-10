@@ -17,8 +17,6 @@ type
   TForm1 = class(TForm)
     Button1: TButton;
     Button2: TButton;
-    Edit1: TEdit;
-    Edit2: TEdit;
     Memo1: TMemo;
 
     procedure Button1Click(Sender: TObject);
@@ -118,6 +116,8 @@ function getsha1hash(S: string): string;
 function CreateOVHQuery(m, q, b: string; ServiceName: string = ''): OVH_Query;
 function Get_OVH_TimeStamp: int64;
 function OVHClient(Query: OVH_QUERY): string;
+function setiniparam(conf, sect, param, val: string): boolean;
+function getiniparam(conf, sect, param: string; default_value: string = ''): string;
 
 implementation
 
@@ -282,6 +282,7 @@ begin
   end;
 end;
 
+// Encodage SHA1 pour la signature
 function getsha1hash(S: string): string;
 var
   Hash: TDCP_SHA1;
@@ -307,6 +308,7 @@ begin
 
 end;
 
+// Récupération du temps sur le serveur OVH
 function Get_OVH_TimeStamp: int64;
 var
   Response: TStringList;
@@ -445,7 +447,7 @@ end;
 
 
 
-function GetOVHPhoneLinesIds(lines:string=''): boolean;
+function GetOVHPhoneLinesIds(lines:string=''): string;
 var
   i: integer;
 var
@@ -454,13 +456,14 @@ var
 var
   rs: string;
 begin
-  Result := False;
+  Result := '';
   Setlength(Cur_OVH_PhoneLines, 0);
   try
     if lines=''  then
     rs := (OVHClient(CreateOVHQuery('GET', BASE_URL +
       '/telephony/{billingAccount}/line', '')))
       else rs:=lines;
+   //setiniparam(params,'Params','lines',lines);
     a := getjson(rs);
     if a = nil then
       exit;
@@ -475,7 +478,7 @@ begin
     end;
   finally
   end;
-  Result := True;
+  Result := rs;
 end;
 
 function GetOVHPhoneCallsIds: boolean;
@@ -532,7 +535,7 @@ begin
   Application.Processmessages;
   try
   t1:=now;
-  GetOVHPhoneLinesIds(ParamLines);
+  ParamLines:=GetOVHPhoneLinesIds(ParamLines);
   GetOVHPhoneCallsIds;
   t2:=now;
   ms := millisecondsBetween(t1,t2);
@@ -578,7 +581,7 @@ begin
   params := ExtractFilePath(ParamStr(0)) + 'params.ini';
   OVH_CK := getiniparam(params, 'Params', 'consumerKey');
   billingAccount := getiniparam(params, 'Params', 'billingAccount');
-  ParamLines := getiniparam(params, 'Params', 'lines');
+ // ParamLines := getiniparam(params, 'Params', 'lines');
   OVHTimer := TTimer.create(self);
   with OVHTimer do begin
   Interval:=2000;
