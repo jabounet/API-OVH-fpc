@@ -1133,7 +1133,7 @@ end;
 
 end.
 /// FONCTIONS ANNEXES/// DANS LE THREAD{t1:=now;{ParamLines:=GetOVHPhoneLinesIds(ParamLines);
-GetOVHPhoneCallsIds;
+{GetOVHPhoneCallsIds;
 t2:=now;
 
 ms := millisecondsBetween(t1,t2);
