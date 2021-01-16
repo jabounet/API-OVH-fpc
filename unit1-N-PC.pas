@@ -23,6 +23,7 @@ type
 
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
     procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -47,7 +48,6 @@ type
     consumerKey: string;
     critic: TcriticalSection;
     procedure Execute; override;
-
 
 
 
@@ -86,12 +86,6 @@ const
 const
   OVH_AS = 'anSVC8QqIujgUZS4pY42CwnV959iQ68G';
 
-const
-  STR_START_RINGING = 'Début sonnerie';
-  STR_END_RINGING = 'Fin sonnerie';
-  STR_START_CALLING = 'Début appel';
-  STR_END_CALLING = 'Fin de l''appel';
-  STR_REGISTERED = 'Enregistrement';
 
 var
   OVH_CK: string;
@@ -204,7 +198,6 @@ function GetEventsPoll(sessId: string): string;
 
 type
   OVHBillingAccounts = array of string;
-
 type
   OVHLines = array of string;
 
@@ -493,8 +486,11 @@ begin
     HTTP.Timeout := Query.timeout;
     HTTP.Sock.ConnectionTimeout := Query.TimeOut;
     HTTP.KeepAlive := Query.keepalive;
-    HTTP.KeepAliveTimeOut := Query.Timeout div 1000;
-     if HTTP.HTTPMethod(query.method, URL) then
+    HTTP.KeepAliveTimeOut := Query.Timeout;
+    // log(HTTP.Headers.Text);
+
+    // log(URL + '$'+HTTP.Headers.Text + '$'+Query.body);
+    if HTTP.HTTPMethod(query.method, URL) then
     begin
       Response.LoadFromStream(HTTP.Document);
       if HTTP.ResultCode = 200 then
@@ -626,7 +622,7 @@ begin
     end;
   finally
     a.Free;
-    c := nil;
+    c:=nil;
   end;
   Result := rs;
 end;
@@ -783,7 +779,7 @@ begin
     with q do
     begin
       q.keepalive := True;
-      q.timeout := 5000;
+      q.timeout := 15000;
       body := '';
       headers := 'Content-Type: application/json' + CRLF + 'Accept: text/plain';
       method := 'GET';
@@ -804,20 +800,17 @@ begin
     'start_calling': Result := start_calling;
     'end_ringing': Result := end_ringing;
     'end_calling': Result := end_calling;
-    'registered': Result := registered;
   end;
 end;
-
 
 function StateTostr(state: call_state): string;
 begin
   Result := 'idle';
   case (state) of
-    start_ringing: Result := STR_START_RINGING;
-    start_calling: Result := STR_END_RINGING;
-    end_ringing: Result := STR_START_CALLING;
-    end_calling: Result := STR_END_CALLING;
-    registered: Result := STR_REGISTERED;
+    start_ringing: Result := 'start_ringing';
+    start_calling: Result := 'start_calling';
+    end_ringing: Result := 'end_ringing';
+    end_calling: Result := 'end_calling';
   end;
 
 end;
@@ -884,16 +877,15 @@ begin
   begin
     keep := True;
     with calls[i] do
-    begin
-      // Ajout de Timeouts (10 sec pour sonnerie ou fin appel, 1 min pour début sonnerie, 2h pour appel)
       case current_state of
-        end_ringing, end_calling: if endTime = startTime then endTime := incsecond(now, 10);
-        start_ringing: if endTime = startTime then endTime := incsecond(now,60);
-        start_calling: if endTime = startTime then endTime := incsecond(now,7200);
+        end_ringing, end_calling:
+        begin
+          if endTime = startTime then
+            endTime := incsecond(now, 10);
+          if now >= endTime then
+            keep := False;
+        end;
       end;
-    if now >= endTime then
-        keep := False;
-    end;
     if keep then
     begin
       Inc(j);
@@ -971,13 +963,11 @@ begin
             current_state := GetState(a[i].FindPath('event').AsString);
             startTime := now;
             endTime := now;
-            if (current_state <> idle) and (current_state <> registered) then
-              log(DateTimetoStr(StartTime) + '@' + CallId + ':' + calling +
-                '>' + called + ':' + Statetostr(current_state));
+            log(DateTimetoStr(StartTime)+':'+calling + '>' + called + ':' + Statetostr(current_state));
           end;
 
           if (not checkifcallExists(call.CallId, CurOVH_Calls)) and
-            (call.current_state <> idle) and (current_state <> registered) then
+            (call.current_state <> idle) then
             CurOVH_Calls := Insertcall(call, CurOVH_Calls)
           else
             CurOVH_Calls := ChangeState(call, call.current_state, CurOVH_Calls);
@@ -986,7 +976,9 @@ begin
         a := nil;
         b.Free;
         t2 := now;
+        //log(IntToStr(millisecondsbetween(t1, t2)) + 'ms');
       end;
+
       critic.leave;
     until Terminated;
 
@@ -1071,7 +1063,9 @@ begin
   end;
 end;
 
-
+procedure TForm1.Button3Click(Sender: TObject);
+begin
+end;
 
 procedure TForm1.FormClose(Sender: TObject; var CloseAction: TCloseAction);
 begin
@@ -1109,7 +1103,7 @@ procedure TForm1.StringGrid1PrepareCanvas(Sender: TObject; aCol, aRow: integer;
 begin
 
   case (Sender as TStringGrid).Cells[1, aRow] of
-    STR_START_RINGING:
+    'start_ringing':
       with (Sender as TStringGrid) do
       begin
         ;
@@ -1117,7 +1111,7 @@ begin
         Canvas.Font.Color := clblack;
         Canvas.Font.Style := [];
       end;
-    STR_START_CALLING:
+    'start_calling':
       with (Sender as TStringGrid) do
       begin
         ;
@@ -1125,7 +1119,7 @@ begin
         Canvas.Font.Color := clblack;
         Canvas.Font.Style := [fsbold];
       end;
-    STR_END_CALLING, STR_END_RINGING:
+    'end_ringing', 'end_calling':
       with (Sender as TStringGrid) do
       begin
         ;
