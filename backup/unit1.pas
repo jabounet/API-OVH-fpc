@@ -293,84 +293,6 @@ begin
   Result := True;
 end;
 
-
-
-function GetMimeFromExt(extension: string): string;
-begin
-  Result := 'application/octet-stream';
-  case extension of
-    '.aac': Result := 'audio/aac';
-    '.abw': Result := 'application/x-abiword';
-    '.arc': Result := 'application/octet-stream';
-    '.avi': Result := 'video/x-msvideo';
-    '.azw': Result := 'application/vnd.amazon.ebook';
-    '.bin': Result := 'application/octet-stream';
-    '.bz': Result := 'application/x-bzip';
-    '.bz2': Result := 'application/x-bzip2';
-    '.csh': Result := 'application/x-csh';
-    '.css': Result := 'text/css';
-    '.csv': Result := 'text/csv';
-    '.doc': Result := 'application/msword';
-    '.docx': Result :=
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    '.eot': Result := 'application/vnd.ms-fontobject';
-    '.epub': Result := 'application/epub+zip';
-    '.gif': Result := 'image/gif';
-    '.htm': Result := 'text/html';
-    '.html': Result := 'text/html';
-    '.ico': Result := 'image/x-icon';
-    '.ics': Result := 'text/calendar';
-    '.jar': Result := 'application/java-archive';
-    '.jpeg': Result := 'image/jpeg';
-    '.jpg': Result := 'image/jpeg';
-    '.js': Result := 'application/javascript';
-    '.json': Result := 'application/json';
-    '.mid': Result := 'audio/midi';
-    '.midi': Result := 'audio/midi';
-    '.mpeg': Result := 'video/mpeg';
-    '.mpkg': Result := 'application/vnd.apple.installer+xml';
-    '.odp': Result := 'application/vnd.oasis.opendocument.presentation';
-    '.ods': Result := 'application/vnd.oasis.opendocument.spreadsheet';
-    '.odt': Result := 'application/vnd.oasis.opendocument.text';
-    '.oga': Result := 'audio/ogg';
-    '.ogv': Result := 'video/ogg';
-    '.ogx': Result := 'application/ogg';
-    '.otf': Result := 'font/otf';
-    '.png': Result := 'image/png';
-    '.pdf': Result := 'application/pdf';
-    '.ppt': Result := 'application/vnd.ms-powerpoint';
-    '.pptx': Result :=
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    '.rar': Result := 'application/x-rar-compressed';
-    '.rtf': Result := 'application/rtf';
-    '.sh': Result := 'application/x-sh';
-    '.svg': Result := 'image/svg+xml';
-    '.swf': Result := 'application/x-shockwave-flash';
-    '.tar': Result := 'application/x-tar';
-    '.tif': Result := 'image/tiff';
-    '.tiff': Result := 'image/tiff';
-    '.ts': Result := 'application/typescript';
-    '.ttf': Result := 'font/ttf';
-    '.vsd': Result := 'application/vnd.visio';
-    '.wav': Result := 'audio/x-wav';
-    '.weba': Result := 'audio/webm';
-    '.webm': Result := 'video/webm';
-    '.webp': Result := 'image/webp';
-    '.woff': Result := 'font/woff';
-    '.woff2': Result := 'font/woff2';
-    '.xhtml': Result := 'application/xhtml+xml';
-    '.xls': Result := 'application/vnd.ms-excel';
-    '.xlsx': Result := 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    '.xml': Result := 'application/xml';
-    '.xul': Result := 'application/vnd.mozilla.xul+xml';
-    '.zip': Result := 'application/zip';
-    '.3gp': Result := 'video/3gpp';
-    '.3g2': Result := 'video/3gpp2';
-    '.7z': Result := 'application/x-7z-compressed';
-  end;
-end;
-
-
 // Synchro du temps avec le serveur OVH
 function GetCurTimeStamp: string;
 begin
@@ -532,7 +454,7 @@ begin
     HTTP.Document.Clear;
     HTTP.Headers.Add('X-Ovh-Application: ' + OVH_AK);
     HTTP.Headers.Add('Content-Type: application/json');
-    HTTP.MimeType := getmimefromext('.json');
+    HTTP.MimeType := 'application/json';
     Body.Clear;
     Body.Add(
       '{"accessRules": [{"method": "GET","path": "/*"},{"method": "POST","path": "/*"}],"redirection":"https://www.youtube.com/watch?v=dQw4w9WgXcQ"}');
@@ -689,7 +611,7 @@ begin
   try
     q := CreateOVHQuery('POST', BASE_URL + '/telephony/{billingAccount}/eventToken',
       '{"expiration":"unlimited"}');
-    q.mimeType := GetMimeFromExt('.json');
+    q.mimeType := 'application/json';
     q.headers := q.headers + CRLF + 'Content-Type: ' + q.mimeType;
     rs := OVHClient(q);
     Result := StringsReplace((rs), ['"', CRLF], ['', ''], [RfReplaceall]);
@@ -858,6 +780,24 @@ begin
 end;
 
 
+function checkStateStep(oldstate,newstate:Call_state):call_state;
+var i,j:integer;
+function getStateorder(state:call_state):integer;
+begin
+result := -1;
+Case state of
+start_ringing:Result:=1;
+end_ringing:Result:=2;
+start_calling:Result:=3;
+end_calling:Result:=4;
+end;
+end;
+begin
+i:=getstateorder(oldstate);
+j:=getstateorder(newstate);
+if j<i then Result := oldState else Result := newState;
+end;
+
 function ChangeState(call: OVH_Call; new_state: Call_state; calls: OVH_Calls): OVH_Calls;
 var
   i: integer;
@@ -866,7 +806,9 @@ begin
   for i := 0 to length(Result) - 1 do
     if Result[i].callId = call.CallId then
     begin
-      Result[i].current_state := new_state;
+
+      Result[i].current_state := checkStateStep(Result[i].current_state,new_state);
+      Result[i].endTime:=Result[i].startTime;
       break;
     end;
 end;
@@ -977,7 +919,7 @@ begin
           end;
 
           if (not checkifcallExists(call.CallId, CurOVH_Calls)) and
-            (call.current_state <> idle) and (current_state <> registered) then
+            (call.current_state <> idle) and (call.current_state <> registered) then
             CurOVH_Calls := Insertcall(call, CurOVH_Calls)
           else
             CurOVH_Calls := ChangeState(call, call.current_state, CurOVH_Calls);
